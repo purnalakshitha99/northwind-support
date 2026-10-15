@@ -30,11 +30,18 @@ export function useTicketList() {
   const [filters, setFilters] = useState<TicketFilters>(emptyFilters);
   const [state, setState] = useState<State>({ isLoading: true });
 
+  const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
+
   const load = async () => {
     setState((current) => ({ ...current, isLoading: true, error: undefined }));
 
     try {
-      const data = await ticketsApi.getTickets(filters);
+      // const data = await ticketsApi.getTickets(filters);
+
+      const data = await ticketsApi.getTickets({
+  ...filters,
+  search: debouncedSearch,
+});
       setState({ isLoading: false, data, error: undefined });
     } catch (error) {
       const message = error instanceof ApiError ? error.message : 'Unable to load tickets.';
@@ -42,12 +49,38 @@ export function useTicketList() {
     }
   };
 
-  useEffect(() => {
-    const handle = window.setTimeout(load, DEBOUNCE_MS);
+  //newly added useEffect to debounce the search input and update the debouncedSearch state after a delay
+   useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedSearch(filters.search);
+    }, DEBOUNCE_MS);
 
     return () => window.clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- filters object identity changes every render
-  }, [filters.search, filters.page, filters.pageSize]);
+  }, [filters.search]);
+
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    debouncedSearch,
+    filters.status,
+    filters.priority,
+    filters.categoryId,
+    filters.customerId,
+    filters.assignedAgentId,
+    filters.unassignedOnly,
+    filters.page,
+    filters.pageSize,
+    filters.sortBy,
+    filters.sortDirection,
+  ]);
+
+  // useEffect(() => {
+  //   const handle = window.setTimeout(load, DEBOUNCE_MS);
+
+  //   return () => window.clearTimeout(handle);
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps -- filters object identity changes every render
+  // }, [filters.search, filters.page, filters.pageSize]);
 
   const updateFilters = (patch: Partial<TicketFilters>) =>
     setFilters((current) => ({ ...current, ...patch, page: patch.page ?? 1 }));
