@@ -1,7 +1,7 @@
 {
   "name": "northwind-support-desk",
   "private": true,
-  "description": "Support ticket management system — .NET API and React web client in one repository",
+  "description": "Support ticket management system \u2014 .NET API and React web client in one repository",
   "workspaces": [
     "apps/web"
   ],
@@ -11,7 +11,7 @@
     "db:reset": "docker compose down -v && docker compose up -d sqlserver",
     "api": "dotnet run --project apps/api/src/SupportDesk.Presentation",
     "web": "npm run dev --workspace apps/web",
-    "build": "dotnet build && npm run build --workspace apps/web",
+    "build": "node init && dotnet build && npm run build --workspace apps/web",
     "test": "dotnet test && npm run test --workspace apps/web",
     "lint": "npm run lint --workspace apps/web",
     "format": "dotnet format",
