@@ -103,6 +103,43 @@ public sealed class Ticket : AggregateRoot
     }
 
     /// <summary>
+/// Sets the response deadline calculated by the SLA rules.
+/// </summary>
+public void SetDueAt(DateTime dueAtUtc, DateTime nowUtc)
+{
+    if (dueAtUtc < nowUtc)
+    {
+        throw new ArgumentOutOfRangeException(
+            nameof(dueAtUtc),
+            "The SLA due date cannot be in the past.");
+    }
+
+    DueAtUtc = dueAtUtc;
+    UpdatedAtUtc = nowUtc;
+}
+/// <summary>
+/// Raises the ticket priority by one level during escalation.
+/// </summary>
+public TicketPriority EscalatePriority(DateTime nowUtc)
+{
+    if (Priority == TicketPriority.Critical)
+    {
+        throw new BusinessRuleViolationException(
+            $"Ticket {Reference} is already Critical and cannot be escalated.");
+    }
+
+    if (Status is TicketStatus.Resolved or TicketStatus.Closed)
+    {
+        throw new BusinessRuleViolationException(
+            $"Ticket {Reference} is {Status} and cannot be escalated.");
+    }
+
+    Priority = (TicketPriority)((int)Priority + 1);
+    UpdatedAtUtc = nowUtc;
+
+    return Priority;
+}
+    /// <summary>
     /// Hands the ticket to an agent, or takes it back off them when <paramref name="agentId"/>
     /// is null. Whether the agent may take it is checked by the caller, which can see agents.
     /// </summary>

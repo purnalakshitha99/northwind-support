@@ -33,6 +33,21 @@ public sealed class ExceptionHandlingMiddleware(
 
             await WriteAsync(context, problem, StatusCodes.Status400BadRequest);
         }
+        catch (ArgumentException exception)
+        {
+            logger.LogInformation(
+                "Invalid request for {Path}: {Message}",
+                context.Request.Path,
+                exception.Message);
+
+            await WriteAsync(
+                context,
+                Problem(
+                    "Bad Request",
+                    exception.Message,
+                    StatusCodes.Status400BadRequest),
+                StatusCodes.Status400BadRequest);
+        }
         catch (NotFoundException exception)
         {
             await WriteAsync(context, Problem("Not Found", exception.Message, StatusCodes.Status404NotFound),

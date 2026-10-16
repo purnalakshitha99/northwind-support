@@ -1,56 +1,121 @@
+
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SupportDesk.Application.Abstractions;
 using SupportDesk.Application.Contracts.Tickets;
 using SupportDesk.Application.Exceptions;
 using SupportDesk.Application.Features.Tickets.Queries.GetTicket;
+using SupportDesk.Application.Options;
+using SupportDesk.Domain.Aggregates.Customers;
 using SupportDesk.Domain.Aggregates.Tickets;
 using SupportDesk.Domain.Repositories;
 
 namespace SupportDesk.Application.Features.Tickets.Commands.RaiseTicket;
 
 /// <summary>
-/// Raises a ticket for a customer.
+/// Raises a ticket, calculates its SLA deadline, and assigns an eligible agent.
 /// </summary>
 public sealed class RaiseTicketCommandHandler(
     ITicketRepository tickets,
     ICustomerRepository customers,
     ICategoryRepository categories,
+    IAgentRepository agents,
     IUnitOfWork unitOfWork,
     IClock clock,
+    IOptions<SlaOptions> slaOptions,
     GetTicketQueryHandler getTicket,
     ILogger<RaiseTicketCommandHandler> logger)
 {
-    /// <exception cref="NotFoundException">The customer or the category does not exist.</exception>
-    public async Task<TicketDetailDto> HandleAsync(CreateTicketRequest request, CancellationToken ct)
+    public async Task<TicketDetailDto> HandleAsync(
+        CreateTicketRequest request,
+        CancellationToken ct)
     {
-        if (!await customers.ExistsAsync(request.CustomerId, ct))
+        var customer = await customers.GetByIdAsync(request.CustomerId, ct);
+
+        if (customer is null)
         {
             throw new NotFoundException("Customer", request.CustomerId);
         }
 
-        if (!await categories.ExistsAsync(request.CategoryId, ct))
+        var category = await categories.GetByIdAsync(request.CategoryId, ct);
+
+        if (category is null)
         {
             throw new NotFoundException("Category", request.CategoryId);
         }
 
-        // The response window is still worked out by hand by the team lead, so a new ticket
-        // starts with no due date and no owner.
+        var now = clock.UtcNow;
+        var options = slaOptions.Value;
+
+        var priority = category.ForcesCriticalPriority
+            ? TicketPriority.Critical
+            : request.RequestedPriority ?? TicketPriority.Medium;
+
+        if (!options.BaseWindowHours.TryGetValue(
+                priority.ToString(), out var baseHours))
+        {
+            throw new InvalidOperationException(
+                $"No SLA window is configured for priority {priority}.");
+        }
+
+        var multiplier = customer.Tier == CustomerTier.Premium
+            ? options.PremiumCustomerMultiplier
+            : 1.0;
+
+        var windowHours = Math.Max(
+            options.MinimumWindowHours,
+            baseHours * multiplier);
+
+        var dueAt = now.AddHours(windowHours);
+
         var ticket = Ticket.Raise(
             await tickets.NextReferenceAsync(ct),
             request.Title,
             request.Description,
             request.CustomerId,
             request.CategoryId,
-            request.RequestedPriority ?? TicketPriority.Medium,
-            clock.UtcNow);
+            priority,
+            now);
+
+        ticket.SetDueAt(dueAt, now);
+
+        var assignedAgent = await agents.GetBestAvailableAsync(
+            category.Id,
+            category.RequiresSpecialist,
+            ct);
+
+        if (assignedAgent is not null)
+        {
+            ticket.AssignTo(assignedAgent.Id, now);
+        }
 
         await tickets.AddAsync(ticket, ct);
         await unitOfWork.SaveChangesAsync(ct);
 
-        logger.LogInformation(
-            "Ticket {Reference} raised for customer {CustomerId} in category {CategoryId}.",
-            ticket.Reference, ticket.CustomerId, ticket.CategoryId);
+        var priorityReason = category.ForcesCriticalPriority
+            ? "Priority set to Critical because the category requires it."
+            : $"Priority set to {priority}.";
 
-        return await getTicket.HandleAsync(ticket.Id, ct);
+        var slaReason = customer.Tier == CustomerTier.Premium
+            ? $"Premium SLA window: {windowHours:0.##} hours."
+            : $"SLA window: {windowHours:0.##} hours.";
+
+        var assignmentReason = assignedAgent is not null
+            ? $"Assigned to {assignedAgent.FullName}."
+            : category.RequiresSpecialist
+                ? "No eligible active specialist has available capacity; ticket remains unassigned."
+                : "No eligible active agent has available capacity; ticket remains unassigned.";
+
+        logger.LogInformation(
+            "Ticket {Reference} raised with priority {Priority} and due date {DueAtUtc}.",
+            ticket.Reference,
+            ticket.Priority,
+            ticket.DueAtUtc);
+
+        var result = await getTicket.HandleAsync(ticket.Id, ct);
+        result.TriageReason =
+            $"{priorityReason} {slaReason} {assignmentReason}";
+
+        return result;
     }
 }

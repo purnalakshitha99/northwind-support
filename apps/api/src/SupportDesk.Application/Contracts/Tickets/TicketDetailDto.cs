@@ -35,4 +35,7 @@ public sealed class TicketDetailDto
 
     /// <summary>Derived from the dates above; never stored.</summary>
     public SlaStatus SlaStatus { get; set; }
+
+    /// <summary>Explains the priority and assignment decisions made during triage.</summary>
+    public string TriageReason { get; set; } = string.Empty;
 }

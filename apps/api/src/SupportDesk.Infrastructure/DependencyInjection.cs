@@ -1,3 +1,4 @@
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,13 +26,17 @@ public static class DependencyInjection
                 "Connection string 'Default' is missing. See README.md for local setup.");
 
         services.AddDbContext<SupportDbContext>(options =>
-            options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure()));
+            options.UseSqlServer(
+                connectionString,
+                sql => sql.EnableRetryOnFailure()));
 
-        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<SupportDbContext>());
+        services.AddScoped<IUnitOfWork>(sp =>
+            sp.GetRequiredService<SupportDbContext>());
 
         services.AddSingleton<IClock, SystemClock>();
 
         services.AddScoped<ITicketRepository, TicketRepository>();
+        services.AddScoped<ITicketEscalationRepository, TicketEscalationRepository>();
         services.AddScoped<IAgentRepository, AgentRepository>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();
@@ -40,6 +45,7 @@ public static class DependencyInjection
         services.AddScoped<ICustomerQueries, CustomerQueries>();
         services.AddScoped<IAgentQueries, AgentQueries>();
         services.AddScoped<ICategoryQueries, CategoryQueries>();
+        services.AddScoped<SupportDesk.Application.Features.Tickets.Commands.EscalateTicket.EscalateTicketCommandHandler>();
 
         services.AddScoped<SupportDbSeeder>();
 
