@@ -67,6 +67,17 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
             tickets = tickets.Where(x => x.Ticket.AssignedAgentId == null);
         }
 
+        if (query.SlaStatus.HasValue)
+{
+    var nowForSla = clock.UtcNow;
+
+    tickets = tickets.Where(x =>
+        SlaEvaluator.Evaluate(
+            x.Ticket.DueAtUtc,
+            x.Ticket.ResolvedAtUtc,
+            nowForSla) == query.SlaStatus.Value);
+}
+
         var totalCount = await tickets.CountAsync(ct);
         var now = clock.UtcNow;
         var items = await ApplySort(tickets, query)

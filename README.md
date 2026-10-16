@@ -66,13 +66,21 @@ credentials.**
 **SupportDesk.Presentation** as the startup project, and press F5 on the **https** profile.
 
 ## Tests
+Run the automated tests from the repository root:
 
-```bash
-npm test                      # dotnet test, then the web tests (Vitest)
-```
+npm test
 
-Both pass on a clean checkout and neither needs a database.
+The latest individual test runs completed with:
 
+Backend unit tests: 32 passed.
+
+Frontend tests (Vitest): 5 passed.
+
+Architecture tests: Could not be verified because Windows Application Control blocked the test assembly from loading.
+
+The complete test suite has not been verified as passing. The architecture-test issue appears to be an environment policy restriction; it does not establish whether those tests would pass in an unrestricted environment.
+
+Build and type-check verification should be run again before submission if any relevant source files have changed.
 ## Commands
 
 | Command | What it does |
@@ -87,7 +95,7 @@ Both pass on a clean checkout and neither needs a database.
 
 | Endpoint | Description |
 | --- | --- |
-| `GET /api/tickets` | Paged list with `search`, `status`, `priority`, `categoryId`, `customerId`, `assignedAgentId`, `unassignedOnly`, `sortBy`, `sortDirection`. **Filters are accepted but not applied yet** (Task 1). |
+| GET /api/tickets | Paged ticket list with search, status, priority, categoryId, customerId, assignedAgentId, unassignedOnly, sortBy, and sortDirection. Filters are applied server-side in the database before counting and pagination. Search matches the ticket title, reference, or customer name; multiple filters combine with AND. |
 | `GET /api/tickets/{id}` | One ticket |
 | `POST /api/tickets` | Create a ticket |
 | `PATCH /api/tickets/{id}/status` · `/assignment` | Change status / assignee |
@@ -99,11 +107,32 @@ Errors are `ProblemDetails`: `400` validation, `404` not found, `409` conflict o
 and 40 tickets across every status, priority and SLA state.
 
 ## Troubleshooting
+## Task 1 — Defect Fix and Server-Side Filtering
 
-| Symptom | Fix |
-| --- | --- |
-| API cannot reach the database | `npm run db:up`, wait ~20 s, check `docker compose ps` |
-| Port 1433 already in use | Change the port in `docker-compose.yml` and `.env` |
-| Browser warns about the certificate | `dotnet dev-certs https --trust`, or use the web app, which proxies |
-| Web app shows "Unable to load tickets" | The API is not running, or `VITE_API_PROXY_TARGET` points at the wrong port |
-| SQL Server slow on Apple Silicon | Enable Rosetta in Docker Desktop → Settings → General |
+### DEFECT-117: Root cause and fix
+
+The ticket list did not reliably reload with the latest filter values when filters changed. This could leave the displayed results stale or cause a request to use an outdated search value.
+
+The fix updates the ticket-list hook so that filter changes trigger the appropriate reload. Search input is debounced by 300 ms to avoid a request on every keystroke, while other filter changes reload immediately. Regression tests cover status changes, changing status while a search debounce is pending, and clearing the search field.
+
+### Filtering design decisions
+
+- Filters are applied in the database query before counting and pagination.
+- Status, priority, category ID, customer ID, and assigned-agent ID use exact-match filtering.
+- `unassignedOnly` selects tickets that have no assigned agent.
+- Search is trimmed and matches ticket title, reference, or customer name.
+- Multiple active filters combine with AND.
+- The total count reflects the filtered result set.
+
+This keeps filtering and pagination on the server rather than fetching all tickets and filtering them in the browser.
+
+## AI Usage
+
+AI tools were used as development assistance. The submitted implementation and tests must be reviewed and understood by the candidate, who is responsible for explaining the code and design decisions.
+
+## Known Limitations
+
+- The Architecture test suite could not be verified because Windows Application Control blocked its test assembly from loading.
+- The current environment reports moderate and high vulnerability warnings for `System.Security.Cryptography.Pkcs` version 9.0.11. The dependency should be reviewed before changing versions.
+- Tasks 2–4 have not been verified as complete and should not be considered implemented based on this README.
+- Out-of-scope features include registration, password reset, roles, OAuth/SSO, refresh tokens, MFA, notifications, CI, caching, and visual redesign.

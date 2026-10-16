@@ -6,6 +6,9 @@ using SupportDesk.Application.Features.Tickets.Commands.ChangeTicketStatus;
 using SupportDesk.Application.Features.Tickets.Commands.RaiseTicket;
 using SupportDesk.Application.Features.Tickets.Queries.GetTicket;
 using SupportDesk.Application.Features.Tickets.Queries.SearchTickets;
+using SupportDesk.Application.Features.Tickets.Commands.EscalateTicket;
+using SupportDesk.Domain.Aggregates.Tickets.Escalations;
+using SupportDesk.Domain.Repositories;
 
 namespace SupportDesk.Presentation.Controllers;
 
@@ -56,4 +59,38 @@ public sealed class TicketsController : ControllerBase
         [FromServices] AssignTicketCommandHandler handler,
         CancellationToken ct) =>
         handler.HandleAsync(id, request, ct);
+
+        [HttpPost("{id:int}/escalate")]
+public Task<EscalateTicketResponse> Escalate(
+    int id,
+    [FromBody] EscalateTicketRequest request,
+    [FromServices] EscalateTicketCommandHandler handler,
+    CancellationToken ct) =>
+    handler.HandleAsync(id, request, ct);
+
+[HttpGet("{id:int}/escalations")]
+public async Task<ActionResult<IReadOnlyList<TicketEscalationDto>>> GetEscalations(
+    int id,
+    [FromServices] ITicketRepository tickets,
+    [FromServices] ITicketEscalationRepository escalations,
+    CancellationToken ct)
+{
+    if (await tickets.GetByIdAsync(id, ct) is null)
+        return NotFound();
+
+    var history = await escalations.GetForTicketAsync(id, ct);
+
+    return Ok(history.Select(e => new TicketEscalationDto(
+        e.Id,
+        e.TicketId,
+        e.FromPriority,
+        e.ToPriority,
+        e.FromAgentId,
+        e.ToAgentId,
+        e.PreviousDueAtUtc,
+        e.NewDueAtUtc,
+        e.Reason,
+        e.EscalatedBy,
+        e.EscalatedAtUtc)).ToList());
+}
 }
