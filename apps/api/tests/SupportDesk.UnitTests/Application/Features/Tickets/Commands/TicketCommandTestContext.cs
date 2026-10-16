@@ -6,11 +6,13 @@ using SupportDesk.Application.Contracts.Tickets;
 using SupportDesk.Application.Features.Tickets.Commands.AssignTicket;
 using SupportDesk.Application.Features.Tickets.Commands.ChangeTicketStatus;
 using SupportDesk.Application.Features.Tickets.Commands.RaiseTicket;
+using SupportDesk.Application.Features.Tickets.Commands.EscalateTicket;
 using SupportDesk.Application.Features.Tickets.Queries.GetTicket;
 using SupportDesk.Application.Options;
 using SupportDesk.Domain.Aggregates.Agents;
 using SupportDesk.Domain.Aggregates.Customers;
 using SupportDesk.Domain.Aggregates.Tickets;
+using SupportDesk.Domain.Aggregates.Tickets.Escalations;
 using SupportDesk.Domain.Repositories;
 using SupportDesk.UnitTests.TestDoubles;
 
@@ -29,6 +31,9 @@ internal sealed class TicketCommandTestContext
             null,
             CustomerTier.Premium,
             Clock.UtcNow);
+        typeof(SupportDesk.Domain.Common.Entity)
+            .GetProperty(nameof(SupportDesk.Domain.Common.Entity.Id))!
+            .SetValue(customer, 1);
 
         Customers
             .Setup(c => c.GetByIdAsync(
@@ -36,10 +41,13 @@ internal sealed class TicketCommandTestContext
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(customer);
 
-       var category = new SupportDesk.Domain.Aggregates.Categories.Category(
-    "General",
-    requiresSpecialist: false,
-    forcesCriticalPriority: false);
+        var category = new SupportDesk.Domain.Aggregates.Categories.Category(
+            "General",
+            requiresSpecialist: false,
+            forcesCriticalPriority: false);
+        typeof(SupportDesk.Domain.Common.Entity)
+            .GetProperty(nameof(SupportDesk.Domain.Common.Entity.Id))!
+            .SetValue(category, 1);
 
         Categories
             .Setup(c => c.GetByIdAsync(
@@ -107,9 +115,29 @@ internal sealed class TicketCommandTestContext
             Clock,
             getTicket,
             NullLogger<AssignTicketCommandHandler>.Instance);
+
+        Escalations.Setup(e => e.AddAsync(
+                It.IsAny<TicketEscalation>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<TicketEscalation, CancellationToken>((esc, _) => AddedEscalation = esc)
+            .Returns(Task.CompletedTask);
+
+        EscalateTicket = new EscalateTicketCommandHandler(
+            Tickets.Object,
+            Escalations.Object,
+            Customers.Object,
+            Categories.Object,
+            Agents.Object,
+            UnitOfWork.Object,
+            Clock,
+            Options.Create(new SlaOptions()),
+            getTicket,
+            NullLogger<EscalateTicketCommandHandler>.Instance);
     }
 
     public Mock<ITicketRepository> Tickets { get; } = new();
+
+    public Mock<ITicketEscalationRepository> Escalations { get; } = new();
 
     public Mock<ICustomerRepository> Customers { get; } = new();
 
@@ -129,8 +157,13 @@ internal sealed class TicketCommandTestContext
 
     public AssignTicketCommandHandler AssignTicket { get; }
 
+    public EscalateTicketCommandHandler EscalateTicket { get; }
+
     /// <summary>The ticket handed to the repository by the last create call.</summary>
     public Ticket? AddedTicket { get; private set; }
+
+    /// <summary>The escalation record handed to the repository by the last escalate call.</summary>
+    public TicketEscalation? AddedEscalation { get; private set; }
 
     /// <summary>Makes GetByIdAsync return the supplied ticket.</summary>
     public Ticket ExistingTicket(Ticket ticket)

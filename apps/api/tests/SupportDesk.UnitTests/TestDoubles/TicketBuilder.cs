@@ -46,6 +46,22 @@ public sealed class TicketBuilder
         return this;
     }
 
+    private DateTime? _dueAtUtc;
+
+    public TicketBuilder WithDueAt(DateTime dueAtUtc)
+    {
+        _dueAtUtc = dueAtUtc;
+        return this;
+    }
+
+    private int _id = 1;
+
+    public TicketBuilder WithId(int id)
+    {
+        _id = id;
+        return this;
+    }
+
     public Ticket Build()
     {
         var ticket = Ticket.Raise(
@@ -56,6 +72,15 @@ public sealed class TicketBuilder
             categoryId: 1,
             _priority,
             FixedClock.DefaultNow);
+
+        typeof(SupportDesk.Domain.Common.Entity)
+            .GetProperty(nameof(SupportDesk.Domain.Common.Entity.Id))!
+            .SetValue(ticket, _id);
+
+        if (_dueAtUtc.HasValue)
+        {
+            ticket.SetDueAt(_dueAtUtc.Value, FixedClock.DefaultNow);
+        }
 
         if (_assignedAgentId is not null)
         {
