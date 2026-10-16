@@ -74,4 +74,67 @@ describe('useTicketList', () => {
       expect.objectContaining({ status: 'Open', page: 1 }),
     );
   });
+  
+  it('keeps the latest search when the status changes before debounce completes', async () => {
+    const { result } = renderHook(() => useTicketList());
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    expect(getTickets).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      result.current.updateFilters({ search: 'invoice' });
+    });
+
+    act(() => {
+      result.current.updateFilters({ status: 'Open' });
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    expect(getTickets).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        search: 'invoice',
+        status: 'Open',
+      }),
+    );
+  });
+
+  it('clears the search when the user removes the search text', async () => {
+    const { result } = renderHook(() => useTicketList());
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    act(() => {
+      result.current.updateFilters({ search: 'invoice' });
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    expect(getTickets).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: 'invoice' }),
+    );
+
+    act(() => {
+      result.current.updateFilters({ search: '' });
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    expect(getTickets).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: '' }),
+    );
+  });
+
+
 });
