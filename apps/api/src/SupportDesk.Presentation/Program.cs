@@ -90,6 +90,15 @@ app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
 app.UseAuthorization();
 
+// DK-7: Open health check reporting database reachability without requiring a token.
+app.MapGet("/health", async (SupportDesk.Infrastructure.Data.SupportDbContext db, CancellationToken ct) =>
+{
+    var canConnect = await db.Database.CanConnectAsync(ct);
+    return canConnect
+        ? Results.Ok(new { status = "Healthy", database = "Connected" })
+        : Results.Problem(title: "Database Unreachable", statusCode: StatusCodes.Status503ServiceUnavailable);
+}).AllowAnonymous();
+
 app.MapControllers();
 
 app.Run();
