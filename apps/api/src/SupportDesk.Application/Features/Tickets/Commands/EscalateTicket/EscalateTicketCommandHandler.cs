@@ -1,5 +1,7 @@
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SupportDesk.Application.Abstractions;
 using SupportDesk.Application.Contracts.Tickets;
 using SupportDesk.Application.Exceptions;
 using SupportDesk.Application.Features.Tickets.Queries.GetTicket;
@@ -18,7 +20,7 @@ public sealed class EscalateTicketCommandHandler(
     ICategoryRepository categories,
     IAgentRepository agents,
     IUnitOfWork unitOfWork,
-    SupportDesk.Application.Abstractions.IClock clock,
+    IClock clock,
     IOptions<SlaOptions> slaOptions,
     GetTicketQueryHandler getTicket,
     ILogger<EscalateTicketCommandHandler> logger)
@@ -45,20 +47,28 @@ public sealed class EscalateTicketCommandHandler(
         var ticket = await tickets.GetByIdAsync(ticketId, ct)
             ?? throw new NotFoundException("Ticket", ticketId);
 
-        if (ticket.Priority == TicketPriority.Critical ||
-            ticket.Status is TicketStatus.Resolved or TicketStatus.Closed)
+        if (ticket.Priority == TicketPriority.Critical)
         {
             throw new ConflictException(
-                "Critical, Resolved, or Closed tickets cannot be escalated.");
+                $"Ticket {ticket.Reference} is already Critical and cannot be escalated.");
         }
 
-        var customer = await customers.GetByIdAsync(ticket.CustomerId, ct)
+        if (ticket.Status is TicketStatus.Resolved or TicketStatus.Closed)
+        {
+            throw new ConflictException(
+                $"Ticket {ticket.Reference} is {ticket.Status} and cannot be escalated.");
+        }
+
+        var customer = await customers.GetByIdAsync(
+            ticket.CustomerId, ct)
             ?? throw new NotFoundException("Customer", ticket.CustomerId);
 
-        var category = await categories.GetByIdAsync(ticket.CategoryId, ct)
+        var category = await categories.GetByIdAsync(
+            ticket.CategoryId, ct)
             ?? throw new NotFoundException("Category", ticket.CategoryId);
 
         var now = clock.UtcNow;
+
         var previousPriority = ticket.Priority;
         var previousAgentId = ticket.AssignedAgentId;
         var previousDueAt = ticket.DueAtUtc;
@@ -83,6 +93,8 @@ public sealed class EscalateTicketCommandHandler(
             baseHours * multiplier);
 
         var newDueAt = now.AddHours(windowHours);
+
+        // Escalation starts a new SLA window at the escalation time.
         ticket.SetDueAt(newDueAt, now);
 
         var keepCurrentAgent = false;
@@ -109,8 +121,8 @@ public sealed class EscalateTicketCommandHandler(
 
         var history = TicketEscalation.Create(
             ticket.Id,
-            (int)previousPriority,
-            (int)ticket.Priority,
+            previousPriority,
+            ticket.Priority,
             previousAgentId,
             ticket.AssignedAgentId,
             previousDueAt,
@@ -123,10 +135,12 @@ public sealed class EscalateTicketCommandHandler(
         await unitOfWork.SaveChangesAsync(ct);
 
         logger.LogInformation(
-            "Ticket {TicketId} escalated from {FromPriority} to {ToPriority}.",
+            "Ticket {TicketId} escalated from {FromPriority} to {ToPriority}. SLA start {SlaStartAtUtc}, new due date {DueAtUtc}.",
             ticket.Id,
             previousPriority,
-            ticket.Priority);
+            ticket.Priority,
+            ticket.SlaWindowStartAtUtc,
+            ticket.DueAtUtc);
 
         var updatedTicket = await getTicket.HandleAsync(ticket.Id, ct);
 

@@ -11,9 +11,9 @@ public sealed class TicketEscalation
 
     public int TicketId { get; private set; }
 
-    public int FromPriority { get; private set; }
+    public TicketPriority FromPriority { get; private set; }
 
-    public int ToPriority { get; private set; }
+    public TicketPriority ToPriority { get; private set; }
 
     public int? FromAgentId { get; private set; }
 
@@ -31,8 +31,8 @@ public sealed class TicketEscalation
 
     public static TicketEscalation Create(
         int ticketId,
-        int fromPriority,
-        int toPriority,
+        TicketPriority fromPriority,
+        TicketPriority toPriority,
         int? fromAgentId,
         int? toAgentId,
         DateTime? previousDueAtUtc,

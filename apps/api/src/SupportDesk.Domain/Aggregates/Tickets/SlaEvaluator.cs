@@ -9,7 +9,7 @@ public static class SlaEvaluator
         DateTime? dueAtUtc,
         DateTime? resolvedAtUtc,
         DateTime nowUtc) =>
-        Evaluate(dueAtUtc, resolvedAtUtc, null, nowUtc);
+        Evaluate(dueAtUtc, resolvedAtUtc, null, nowUtc, 25);
 
     public static SlaStatus Evaluate(
         DateTime? dueAtUtc,
@@ -22,13 +22,17 @@ public static class SlaEvaluator
             return SlaStatus.NotApplicable;
 
         if (resolvedAtUtc is not null)
+        {
             return resolvedAtUtc <= dueAtUtc
                 ? SlaStatus.Met
                 : SlaStatus.Breached;
+        }
 
         if (nowUtc > dueAtUtc.Value)
             return SlaStatus.Breached;
 
+        // Older/seeded tickets can have a due date but no recorded SLA window start.
+        // Match the list-query filter: consider them WithinSla until their deadline.
         if (windowStartUtc is null)
             return SlaStatus.WithinSla;
 
@@ -39,7 +43,7 @@ public static class SlaEvaluator
 
         var remaining = dueAtUtc.Value - nowUtc;
         var remainingPercent =
-            remaining.TotalSeconds / totalWindow.TotalSeconds * 100;
+            remaining.TotalSeconds / totalWindow.TotalSeconds * 100.0;
 
         return remainingPercent <= atRiskThresholdPercent
             ? SlaStatus.AtRisk
