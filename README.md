@@ -55,6 +55,23 @@ Other seeded agents (active: Ben Osei, Priya Nair, Sara Lindqvist; full-capacity
 
 ---
 
+## Key Design Decisions (Chosen vs. Rejected & Rationale)
+
+The table below highlights critical architectural choices made during implementation, alternative approaches considered and rejected, and the technical justification for each:
+
+| Decision | Chosen Approach | Rejected Alternative | Technical Rationale |
+|---|---|---|---|
+| **DEFECT-117 Filter Synchronization** | Custom debounced search with coordinated immediate dropdown filter reloads in `useTicketList.ts`. | React `key` prop remounting or forcing full page reloads (`window.location.reload()`). | Remounting resets local component state and causes UI jitter/flicker. Debouncing search (300 ms) while firing immediate requests on dropdown changes provides responsive UX without spamming the backend API. |
+| **Server-Side Filtering** | Database query predicates applied directly on `IQueryable<Ticket>` in SQL before counting and pagination. | In-memory filtering in C# with `IEnumerable<Ticket>` after loading full table. | In-memory filtering fails to scale to tens of thousands of tickets, wastes server memory, and produces incorrect database pagination counts (`totalCount`, `totalPages`). |
+| **Credential Storage (AU-1)** | Direct `PasswordHash` column on the `Agent` aggregate root. | Creating a separate 1:1 `Users` table with foreign key linkage to `Agent`. | In an agent-only support system, an external `Users` table introduces unnecessary 1:1 JOIN overhead for every query and migration complexity without offering multi-tenant or role-matrix benefits. |
+| **Password Hashing (AU-2)** | Standard .NET BCL `Rfc2898DeriveBytes.Pbkdf2` (HMAC-SHA256, 100,000 iterations, 128-bit salt, `FixedTimeEquals`). | ASP.NET Core Identity or third-party BCrypt NuGet packages. | The `SupportDesk.Infrastructure` layer enforces strict Clean Architecture boundaries with zero references to `Microsoft.AspNetCore.*`. Using standard BCL cryptography adheres to Clean Architecture while delivering vetted, NIST-compliant security. |
+| **Central Authorization (AU-6)** | ASP.NET Core `FallbackPolicy` requiring authenticated users by default, with explicit `[AllowAnonymous]` on `/health`, Swagger, and `/api/auth/login`. | Decorating every controller and action manually with `[Authorize]`. | "Secure by default" prevents accidental authorization omissions when new controllers are added in the future. |
+| **Escalation Actor Resolution (AU-8)** | Extracting `escalatedBy` from validated JWT `ClaimTypes.Name` claims. | Trusting `escalatedBy` passed in `EscalateTicketRequest` body. | Trusting client-supplied actor values in request bodies creates identity spoofing vulnerabilities in audit logs. |
+| **Docker Build Caching (DK-1)** | Multi-stage build copying `.sln`, `.props`, and `.csproj` files first to run `dotnet restore`, then copying source. | Single `COPY . .` followed by `dotnet restore` and build. | Daily source code edits reuse the cached NuGet restore layer, reducing container rebuild times from minutes to seconds. |
+| **Client Token Storage (AU-10)** | Client-side `sessionStorage` with `Authorization: Bearer <token>` attached via fetch interceptor in `client.ts`. | `HttpOnly` session cookies. | Decouples web SPA from backend hosting origins during development and proxy configurations, avoiding CSRF vulnerabilities while maintaining simple per-tab session lifecycle. |
+
+---
+
 ## Task Breakdown & Implementation Details
 
 ### Task 1 — Defect Fix and Server-Side Filtering

@@ -17,7 +17,6 @@ coverage/
 ## Rider / VS Code
 .idea/
 *.sln.iml
-.vscode/*
 !.vscode/extensions.json
 
 ## Node / frontend
@@ -30,8 +29,6 @@ npm-debug.log*
 yarn-error.log*
 
 ## Environment and secrets - never commit these
-.env
-.env.*
 !.env.example
 appsettings.*.local.json
 secrets.json
@@ -44,3 +41,4 @@ secrets.json
 ## OS
 .DS_Store
 Thumbs.db
+config.bat
