@@ -6,6 +6,55 @@ import type { ProblemDetails } from '../types/api';
  */
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
+const TOKEN_KEY = 'northwind_support_token';
+const AGENT_KEY = 'northwind_support_agent';
+
+type UnauthorizedHandler = () => void;
+const unauthorizedHandlers: Set<UnauthorizedHandler> = new Set();
+
+/** Register a callback invoked whenever the API responds with 401 Unauthorized. */
+export function onUnauthorized(handler: UnauthorizedHandler): () => void {
+  unauthorizedHandlers.add(handler);
+  return () => {
+    unauthorizedHandlers.delete(handler);
+  };
+}
+
+export function getAuthToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function getStoredAgent(): import('../types/api').CurrentUser | null {
+  try {
+    const raw = localStorage.getItem(AGENT_KEY);
+    return raw ? (JSON.parse(raw) as import('../types/api').CurrentUser) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthSession(token: string, agent: import('../types/api').CurrentUser): void {
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(AGENT_KEY, JSON.stringify(agent));
+  } catch {
+    // Ignore storage quota or disabled storage errors
+  }
+}
+
+export function clearAuthSession(): void {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(AGENT_KEY);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 /** A failed HTTP call, carrying the problem document the API returned. */
 export class ApiError extends Error {
   readonly status: number;
@@ -30,15 +79,34 @@ export class ApiError extends Error {
  * {@link ApiError} that callers can show to the user.
  */
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getAuthToken();
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      clearAuthSession();
+      unauthorizedHandlers.forEach((handler) => {
+        try {
+          handler();
+        } catch {
+          // Prevent handler failure from suppressing error throwing
+        }
+      });
+    }
+
     const problem = await readProblem(response);
 
     throw new ApiError(
