@@ -3,8 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { Spinner } from '../../components/Spinner';
 import { useReferenceData } from '../../hooks/useReferenceData';
+import { formatDateTime } from '../../lib/format';
 import type { TicketDetail } from '../../types/api';
 import { CreateTicketForm } from './components/CreateTicketForm';
+import { PriorityBadge } from './components/TicketBadges';
 
 export function CreateTicketPage() {
   const reference = useReferenceData();
@@ -29,10 +31,50 @@ export function CreateTicketPage() {
       )}
 
       {created && (
-        <div className="card notice" role="status">
-          <p>
-            Raised <strong>{created.reference}</strong> for {created.customer.name}.
+        <div className="card notice" role="status" data-testid="triage-result">
+          <h2 style={{ marginTop: 0 }}>
+            Ticket Raised: <strong>{created.reference}</strong>
+          </h2>
+          <p style={{ margin: '0.25rem 0 1rem' }}>
+            Customer: <strong>{created.customer.name}</strong> ({created.customer.tier} tier)
           </p>
+
+          <dl className="summary" style={{ margin: '1rem 0' }}>
+            <div>
+              <dt>Applied Priority</dt>
+              <dd>
+                <PriorityBadge priority={created.priority} />
+              </dd>
+            </div>
+
+            <div>
+              <dt>SLA Due Date</dt>
+              <dd>
+                {created.dueAtUtc ? formatDateTime(created.dueAtUtc) : 'No SLA'}
+              </dd>
+            </div>
+
+            <div>
+              <dt>Assigned Agent</dt>
+              <dd>
+                {created.assignedAgent ? (
+                  <strong>{created.assignedAgent.fullName}</strong>
+                ) : (
+                  <span style={{ color: 'var(--color-warning, #d97706)' }}>
+                    Unassigned — {created.triageReason || 'No eligible active agent currently available'}
+                  </span>
+                )}
+              </dd>
+            </div>
+
+            {created.triageReason && (
+              <div>
+                <dt>Triage Decision</dt>
+                <dd style={{ fontStyle: 'italic' }}>{created.triageReason}</dd>
+              </div>
+            )}
+          </dl>
+
           <div className="button-row">
             <button
               type="button"
@@ -41,7 +83,11 @@ export function CreateTicketPage() {
             >
               Open {created.reference}
             </button>
-            <button type="button" className="button button--ghost" onClick={() => setCreated(undefined)}>
+            <button
+              type="button"
+              className="button button--ghost"
+              onClick={() => setCreated(undefined)}
+            >
               Raise another
             </button>
           </div>

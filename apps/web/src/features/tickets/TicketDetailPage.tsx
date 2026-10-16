@@ -1,8 +1,12 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { Spinner } from '../../components/Spinner';
 import { useReferenceData } from '../../hooks/useReferenceData';
+import type { TicketDetail } from '../../types/api';
 import { AssignAgentControl } from './components/AssignAgentControl';
+import { EscalateTicketPanel } from './components/EscalateTicketPanel';
+import { EscalationHistory } from './components/EscalationHistory';
 import { StatusActions } from './components/StatusActions';
 import { TicketSummary } from './components/TicketSummary';
 import { useTicket } from './hooks/useTicket';
@@ -13,6 +17,7 @@ export function TicketDetailPage() {
 
   const { data: ticket, isLoading, error, reload, setData } = useTicket(ticketId);
   const reference = useReferenceData();
+  const [historyKey, setHistoryKey] = useState(0);
 
   if (Number.isNaN(ticketId)) {
     return <ErrorMessage message="That is not a valid ticket reference." />;
@@ -29,6 +34,11 @@ export function TicketDetailPage() {
   if (!ticket) {
     return null;
   }
+
+  const handleEscalated = (updatedTicket: TicketDetail) => {
+    setData(updatedTicket);
+    setHistoryKey((k) => k + 1);
+  };
 
   return (
     <section>
@@ -51,6 +61,18 @@ export function TicketDetailPage() {
           </div>
 
           <StatusActions ticket={ticket} onUpdated={setData} />
+
+          <EscalateTicketPanel
+            ticket={ticket}
+            agents={reference.data?.agents ?? []}
+            onEscalated={handleEscalated}
+          />
+
+          <EscalationHistory
+            ticketId={ticket.id}
+            agents={reference.data?.agents ?? []}
+            reloadKey={historyKey}
+          />
         </div>
 
         <aside className="detail-layout__side">

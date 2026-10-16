@@ -9,6 +9,7 @@ export const emptyFilters: TicketFilters = {
   search: '',
   status: undefined,
   priority: undefined,
+  slaStatus: undefined,
   categoryId: undefined,
   customerId: undefined,
   assignedAgentId: undefined,
@@ -36,12 +37,10 @@ export function useTicketList() {
     setState((current) => ({ ...current, isLoading: true, error: undefined }));
 
     try {
-      // const data = await ticketsApi.getTickets(filters);
-
       const data = await ticketsApi.getTickets({
-  ...filters,
-  search: debouncedSearch,
-});
+        ...filters,
+        search: debouncedSearch,
+      });
       setState({ isLoading: false, data, error: undefined });
     } catch (error) {
       const message = error instanceof ApiError ? error.message : 'Unable to load tickets.';
@@ -49,8 +48,7 @@ export function useTicketList() {
     }
   };
 
-  //newly added useEffect to debounce the search input and update the debouncedSearch state after a delay
-   useEffect(() => {
+  useEffect(() => {
     const handle = window.setTimeout(() => {
       setDebouncedSearch(filters.search);
     }, DEBOUNCE_MS);
@@ -59,12 +57,14 @@ export function useTicketList() {
   }, [filters.search]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     debouncedSearch,
     filters.status,
     filters.priority,
+    filters.slaStatus,
     filters.categoryId,
     filters.customerId,
     filters.assignedAgentId,
