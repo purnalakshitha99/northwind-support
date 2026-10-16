@@ -14,7 +14,7 @@ public sealed class Agent : AggregateRoot
         // For EF Core.
     }
 
-    public Agent(string fullName, string email, int maxOpenTickets, DateTime createdAtUtc)
+    public Agent(string fullName, string email, int maxOpenTickets, DateTime createdAtUtc, string? passwordHash = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fullName);
         ArgumentException.ThrowIfNullOrWhiteSpace(email);
@@ -25,11 +25,15 @@ public sealed class Agent : AggregateRoot
         IsActive = true;
         MaxOpenTickets = maxOpenTickets;
         CreatedAtUtc = createdAtUtc;
+        PasswordHash = passwordHash;
     }
 
     public string FullName { get; private set; } = string.Empty;
 
     public string Email { get; private set; } = string.Empty;
+
+    /// <summary>Hashed and salted credential for authentication.</summary>
+    public string? PasswordHash { get; private set; }
 
     /// <summary>Inactive agents keep their history but take no new work.</summary>
     public bool IsActive { get; private set; }
@@ -55,4 +59,11 @@ public sealed class Agent : AggregateRoot
 
     /// <summary>Stops the agent from taking new work. Their history is kept.</summary>
     public void Deactivate() => IsActive = false;
+
+    /// <summary>Updates the agent's hashed password.</summary>
+    public void SetPasswordHash(string passwordHash)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(passwordHash);
+        PasswordHash = passwordHash;
+    }
 }

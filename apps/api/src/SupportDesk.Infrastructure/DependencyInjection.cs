@@ -34,6 +34,7 @@ public static class DependencyInjection
             sp.GetRequiredService<SupportDbContext>());
 
         services.AddSingleton<IClock, SystemClock>();
+        services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 
         services.AddScoped<ITicketRepository, TicketRepository>();
         services.AddScoped<ITicketEscalationRepository, TicketEscalationRepository>();
