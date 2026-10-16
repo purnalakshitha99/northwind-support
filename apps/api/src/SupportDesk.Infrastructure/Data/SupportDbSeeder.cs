@@ -29,6 +29,18 @@ public sealed class SupportDbSeeder(SupportDbContext db, IClock clock, IPassword
     {
         if (await db.Set<Ticket>().AnyAsync(ct))
         {
+            var unhashedAgents = await db.Set<Agent>().Where(a => a.PasswordHash == null).ToListAsync(ct);
+            if (unhashedAgents.Count > 0)
+            {
+                var hash = passwordHasher.HashPassword(DefaultDevPassword);
+                foreach (var agent in unhashedAgents)
+                {
+                    agent.SetPasswordHash(hash);
+                }
+                await db.SaveChangesAsync(ct);
+                logger.LogInformation("Updated password hashes for {Count} existing development agents.", unhashedAgents.Count);
+            }
+
             logger.LogInformation("Seed data already present; skipping.");
             return;
         }
