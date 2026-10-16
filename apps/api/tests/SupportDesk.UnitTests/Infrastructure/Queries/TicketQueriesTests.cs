@@ -9,6 +9,8 @@ using SupportDesk.Infrastructure.Data;
 using SupportDesk.Infrastructure.Queries;
 using SupportDesk.UnitTests.TestDoubles;
 using SupportDesk.Domain.Aggregates.Agents;
+using Microsoft.Extensions.Options;
+using SupportDesk.Application.Options;
 
 namespace SupportDesk.UnitTests.Infrastructure.Queries;
 
@@ -61,7 +63,10 @@ public sealed class TicketQueriesTests
 
         await db.SaveChangesAsync();
 
-        var queries = new TicketQueries(db, new FixedClock());
+        var queries = new TicketQueries(
+            db,
+            new FixedClock(),
+            Options.Create(new SlaOptions()));
 
         var query = new TicketQuery
         {
@@ -124,7 +129,10 @@ public sealed class TicketQueriesTests
         matchingTicket.ChangeStatus(TicketStatus.InProgress, FixedClock.DefaultNow);
         await db.SaveChangesAsync();
 
-        var queries = new TicketQueries(db, new FixedClock());
+        var queries = new TicketQueries(
+            db,
+            new FixedClock(),
+            Options.Create(new SlaOptions()));
 
         var result = await queries.GetPagedAsync(
             new TicketQuery
@@ -182,7 +190,10 @@ public sealed class TicketQueriesTests
 
         await db.SaveChangesAsync();
 
-        var queries = new TicketQueries(db, new FixedClock());
+        var queries = new TicketQueries(
+            db,
+            new FixedClock(),
+            Options.Create(new SlaOptions()));
 
         var result = await queries.GetPagedAsync(
             new TicketQuery
@@ -256,7 +267,10 @@ public sealed class TicketQueriesTests
         db.Set<Ticket>().AddRange(assignedTicket, unassignedTicket);
         await db.SaveChangesAsync();
 
-        var queries = new TicketQueries(db, new FixedClock());
+        var queries = new TicketQueries(
+            db,
+            new FixedClock(),
+            Options.Create(new SlaOptions()));
 
         // Act 1: Filter by assigned agent.
         var assignedResult = await queries.GetPagedAsync(
@@ -339,7 +353,10 @@ public sealed class TicketQueriesTests
 
         await db.SaveChangesAsync();
 
-        var queries = new TicketQueries(db, new FixedClock());
+        var queries = new TicketQueries(
+            db,
+            new FixedClock(),
+            Options.Create(new SlaOptions()));
 
         var result = await queries.GetPagedAsync(
             new TicketQuery
@@ -396,7 +413,10 @@ public sealed class TicketQueriesTests
 
         await db.SaveChangesAsync();
 
-        var queries = new TicketQueries(db, new FixedClock());
+        var queries = new TicketQueries(
+            db,
+            new FixedClock(),
+            Options.Create(new SlaOptions()));
 
         var firstPage = await queries.GetPagedAsync(
             new TicketQuery

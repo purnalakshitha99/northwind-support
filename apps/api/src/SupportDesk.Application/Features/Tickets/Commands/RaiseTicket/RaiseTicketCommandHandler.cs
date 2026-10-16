@@ -30,14 +30,16 @@ public sealed class RaiseTicketCommandHandler(
         CreateTicketRequest request,
         CancellationToken ct)
     {
-        var customer = await customers.GetByIdAsync(request.CustomerId, ct);
+        var customer = await customers.GetByIdAsync(
+            request.CustomerId, ct);
 
         if (customer is null)
         {
             throw new NotFoundException("Customer", request.CustomerId);
         }
 
-        var category = await categories.GetByIdAsync(request.CategoryId, ct);
+        var category = await categories.GetByIdAsync(
+            request.CategoryId, ct);
 
         if (category is null)
         {
@@ -77,6 +79,7 @@ public sealed class RaiseTicketCommandHandler(
             priority,
             now);
 
+        // The SLA window starts when the ticket is raised.
         ticket.SetDueAt(dueAt, now);
 
         var assignedAgent = await agents.GetBestAvailableAsync(
@@ -107,12 +110,14 @@ public sealed class RaiseTicketCommandHandler(
                 : "No eligible active agent has available capacity; ticket remains unassigned.";
 
         logger.LogInformation(
-            "Ticket {Reference} raised with priority {Priority} and due date {DueAtUtc}.",
+            "Ticket {Reference} raised with priority {Priority}, SLA start {SlaStartAtUtc}, and due date {DueAtUtc}.",
             ticket.Reference,
             ticket.Priority,
+            ticket.SlaWindowStartAtUtc,
             ticket.DueAtUtc);
 
         var result = await getTicket.HandleAsync(ticket.Id, ct);
+
         result.TriageReason =
             $"{priorityReason} {slaReason} {assignmentReason}";
 

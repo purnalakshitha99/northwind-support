@@ -1,10 +1,12 @@
+using SupportDesk.Domain.Aggregates.Tickets;
+
 namespace SupportDesk.Application.Contracts.Tickets;
 
 public sealed record TicketEscalationDto(
     int Id,
     int TicketId,
-    int FromPriority,
-    int ToPriority,
+    TicketPriority FromPriority,
+    TicketPriority ToPriority,
     int? FromAgentId,
     int? ToAgentId,
     DateTime? PreviousDueAtUtc,
