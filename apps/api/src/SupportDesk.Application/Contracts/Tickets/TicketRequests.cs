@@ -18,4 +18,4 @@ public sealed record AssignTicketRequest(int? AgentId);
 
 public sealed record EscalateTicketRequest(
     string Reason,
-    string EscalatedBy);
+    string? EscalatedBy = null);

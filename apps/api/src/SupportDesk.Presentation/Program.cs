@@ -32,6 +32,46 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.Configure<SupportDesk.Application.Options.SlaOptions>(
     builder.Configuration.GetSection("Sla"));
+
+builder.Services.Configure<SupportDesk.Application.Options.JwtOptions>(
+    builder.Configuration.GetSection(SupportDesk.Application.Options.JwtOptions.SectionName));
+
+builder.Services.AddSingleton<SupportDesk.Application.Abstractions.ITokenService, SupportDesk.Presentation.Services.JwtTokenService>();
+
+var jwtOptions = builder.Configuration
+    .GetSection(SupportDesk.Application.Options.JwtOptions.SectionName)
+    .Get<SupportDesk.Application.Options.JwtOptions>() ?? new SupportDesk.Application.Options.JwtOptions();
+
+var signingKey = !string.IsNullOrEmpty(jwtOptions.SecretKey)
+    ? new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(jwtOptions.SecretKey))
+    : new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes("NorthwindSupportDesk_LocalDevelopment_JwtSecretKey_2026!"));
+
+builder.Services
+    .AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = signingKey,
+            ValidateIssuer = true,
+            ValidIssuer = jwtOptions.Issuer,
+            ValidateAudience = true,
+            ValidAudience = jwtOptions.Audience,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromSeconds(30)
+        };
+    });
+
+builder.Services.AddAuthorization(options =>
+{
+    // AU-6: Central fallback policy requires an authenticated user for all endpoints by default.
+    // Login and Swagger are explicitly marked [AllowAnonymous].
+    options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+});
+
 var app = builder.Build();
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
@@ -46,6 +86,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors(FrontendCorsPolicy);
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 

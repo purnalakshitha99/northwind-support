@@ -60,13 +60,27 @@ public sealed class TicketsController : ControllerBase
         CancellationToken ct) =>
         handler.HandleAsync(id, request, ct);
 
-        [HttpPost("{id:int}/escalate")]
-public Task<EscalateTicketResponse> Escalate(
-    int id,
-    [FromBody] EscalateTicketRequest request,
-    [FromServices] EscalateTicketCommandHandler handler,
-    CancellationToken ct) =>
-    handler.HandleAsync(id, request, ct);
+    [HttpPost("{id:int}/escalate")]
+    public Task<EscalateTicketResponse> Escalate(
+        int id,
+        [FromBody] EscalateTicketRequest request,
+        [FromServices] EscalateTicketCommandHandler handler,
+        CancellationToken ct)
+    {
+        var actor = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+            ?? User.Identity?.Name
+            ?? request.EscalatedBy;
+
+        if (string.IsNullOrWhiteSpace(actor))
+        {
+            throw new SupportDesk.Application.Exceptions.UnauthorizedException(
+                "Current user identity not found in token claims.");
+        }
+
+        var effectiveRequest = request with { EscalatedBy = actor };
+        return handler.HandleAsync(id, effectiveRequest, ct);
+    }
 
 [HttpGet("{id:int}/escalations")]
 public async Task<ActionResult<IReadOnlyList<TicketEscalationDto>>> GetEscalations(
